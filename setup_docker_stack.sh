@@ -114,14 +114,14 @@ services:
     networks:
       - nginx-proxy
 
-    volumes:
-      certs:
-      vhost:
-      html:
-    
-    networks:
-      nginx-proxy:
-        external: true
+volumes:
+  certs:
+  vhost:
+  html:
+
+networks:
+  nginx-proxy:
+    external: true
 YML
 
 # Up reverse proxy (idempotent)
