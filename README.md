@@ -1,4 +1,5 @@
 #xoá Docker + dữ liệu + cấu hình chỉ bằng một lệnh duy nhất:
+
 sudo apt remove --purge -y docker.io docker-ce docker-ce-cli containerd.io docker-compose-plugin && \
 sudo apt autoremove -y --purge && \
 sudo rm -rf /var/lib/docker /var/lib/containerd /etc/docker
