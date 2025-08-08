@@ -168,7 +168,17 @@ PHP_NAME="php-${DOMAIN_SLUG}"
 MYSQL_NAME="mysql-${DOMAIN_SLUG}"
 PMA_NAME="pma-${DOMAIN_SLUG}"
 
-# Tạo docker-compose.yml với điều kiện pma ngay trong services:
+# Dockerfile để cài mysqli + pdo_mysql
+cat > Dockerfile <<'DOCKER'
+FROM php:8.2-apache
+# Cài extensions cần cho MySQL
+RUN docker-php-ext-install mysqli pdo pdo_mysql \
+ && docker-php-ext-enable mysqli pdo_mysql
+# (tuỳ chọn) Bật mod_rewrite nếu cần cho frameworks
+RUN a2enmod rewrite
+DOCKER
+
+# docker-compose.yml với build từ Dockerfile trên
 if [[ "${WITH_PHPMYADMIN}" == "yes" ]]; then
   PMA_DOMAIN="pma.${DOMAIN}"
   info "Bật phpMyAdmin tại https://${PMA_DOMAIN}"
@@ -176,7 +186,7 @@ if [[ "${WITH_PHPMYADMIN}" == "yes" ]]; then
   cat > docker-compose.yml <<YML
 services:
   php:
-    image: php:8.2-apache
+    build: .
     container_name: ${PHP_NAME}
     restart: unless-stopped
     environment:
@@ -214,91 +224,4 @@ services:
     restart: unless-stopped
     environment:
       PMA_HOST: mysql
-      VIRTUAL_HOST: ${PMA_DOMAIN}
-      LETSENCRYPT_HOST: ${PMA_DOMAIN}
-      LETSENCRYPT_EMAIL: \${LE_EMAIL}
-    networks:
-      - nginx-proxy
-      - backend
-
-volumes:
-  dbdata:
-
-networks:
-  nginx-proxy:
-    external: true
-  backend:
-    driver: bridge
-YML
-
-else
-  cat > docker-compose.yml <<YML
-services:
-  php:
-    image: php:8.2-apache
-    container_name: ${PHP_NAME}
-    restart: unless-stopped
-    environment:
-      VIRTUAL_HOST: \${VIRTUAL_HOST}
-      LETSENCRYPT_HOST: \${LETSENCRYPT_HOST}
-      LETSENCRYPT_EMAIL: \${LE_EMAIL}
-      MYSQL_USER: \${MYSQL_USER}
-      MYSQL_PASSWORD: \${MYSQL_PASSWORD}
-      MYSQL_DATABASE: \${MYSQL_DATABASE}
-    volumes:
-      - ./src:/var/www/html
-    networks:
-      - nginx-proxy
-      - backend
-    depends_on:
-      - mysql
-
-  mysql:
-    image: mysql:8.0
-    container_name: ${MYSQL_NAME}
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: \${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: \${MYSQL_DATABASE}
-      MYSQL_USER: \${MYSQL_USER}
-      MYSQL_PASSWORD: \${MYSQL_PASSWORD}
-    volumes:
-      - dbdata:/var/lib/mysql
-    networks:
-      - backend
-
-volumes:
-  dbdata:
-
-networks:
-  nginx-proxy:
-    external: true
-  backend:
-    driver: bridge
-YML
-fi
-
-docker compose up -d
-info "Stack cho ${DOMAIN} đã chạy."
-
-cat <<DNS
-
-==============================================
-📌 TRỎ DNS (A records) về IP server này:
-  - ${DOMAIN}
-  - pma.${DOMAIN} (nếu --with-pma yes)
-
-Đợi vài phút để Let's Encrypt cấp SSL, rồi truy cập:
-  - https://${DOMAIN}
-  - https://pma.${DOMAIN}  (user/pass: ${DB_USER} / ${DB_PASSWORD})
-
-Log proxy / SSL:
-  docker logs -f nginx-proxy
-  docker logs -f letsencrypt-nginx
-
-Quản trị stack domain:
-  cd ~/${DOMAIN} && docker compose ps
-  cd ~/${DOMAIN} && docker compose restart
-  cd ~/${DOMAIN} && docker compose down -v   # (xóa cả DB)
-==============================================
-DNS
+      VIRTUAL
