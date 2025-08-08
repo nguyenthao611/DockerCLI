@@ -168,7 +168,71 @@ PHP_NAME="php-${DOMAIN_SLUG}"
 MYSQL_NAME="mysql-${DOMAIN_SLUG}"
 PMA_NAME="pma-${DOMAIN_SLUG}"
 
-cat > docker-compose.yml <<YML
+# Tạo docker-compose.yml với điều kiện pma ngay trong services:
+if [[ "${WITH_PHPMYADMIN}" == "yes" ]]; then
+  PMA_DOMAIN="pma.${DOMAIN}"
+  info "Bật phpMyAdmin tại https://${PMA_DOMAIN}"
+
+  cat > docker-compose.yml <<YML
+services:
+  php:
+    image: php:8.2-apache
+    container_name: ${PHP_NAME}
+    restart: unless-stopped
+    environment:
+      VIRTUAL_HOST: \${VIRTUAL_HOST}
+      LETSENCRYPT_HOST: \${LETSENCRYPT_HOST}
+      LETSENCRYPT_EMAIL: \${LE_EMAIL}
+      MYSQL_USER: \${MYSQL_USER}
+      MYSQL_PASSWORD: \${MYSQL_PASSWORD}
+      MYSQL_DATABASE: \${MYSQL_DATABASE}
+    volumes:
+      - ./src:/var/www/html
+    networks:
+      - nginx-proxy
+      - backend
+    depends_on:
+      - mysql
+
+  mysql:
+    image: mysql:8.0
+    container_name: ${MYSQL_NAME}
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: \${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: \${MYSQL_DATABASE}
+      MYSQL_USER: \${MYSQL_USER}
+      MYSQL_PASSWORD: \${MYSQL_PASSWORD}
+    volumes:
+      - dbdata:/var/lib/mysql
+    networks:
+      - backend
+
+  pma:
+    image: phpmyadmin:latest
+    container_name: ${PMA_NAME}
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      VIRTUAL_HOST: ${PMA_DOMAIN}
+      LETSENCRYPT_HOST: ${PMA_DOMAIN}
+      LETSENCRYPT_EMAIL: \${LE_EMAIL}
+    networks:
+      - nginx-proxy
+      - backend
+
+volumes:
+  dbdata:
+
+networks:
+  nginx-proxy:
+    external: true
+  backend:
+    driver: bridge
+YML
+
+else
+  cat > docker-compose.yml <<YML
 services:
   php:
     image: php:8.2-apache
@@ -212,26 +276,6 @@ networks:
   backend:
     driver: bridge
 YML
-
-if [[ "${WITH_PHPMYADMIN}" == "yes" ]]; then
-  PMA_DOMAIN="pma.${DOMAIN}"
-  info "Bật phpMyAdmin tại https://${PMA_DOMAIN}"
-  awk -v pma="${PMA_DOMAIN}" -v cname="${PMA_NAME}" '
-    1
-    END {
-      print "  pma:";
-      print "    image: phpmyadmin:latest";
-      print "    container_name: " cname;
-      print "    restart: unless-stopped";
-      print "    environment:";
-      print "      PMA_HOST: mysql";
-      print "      VIRTUAL_HOST: " pma;
-      print "      LETSENCRYPT_HOST: " pma;
-      print "      LETSENCRYPT_EMAIL: ${LE_EMAIL}";
-      print "    networks:";
-      print "      - nginx-proxy";
-      print "      - backend";
-    }' docker-compose.yml > docker-compose.yml.tmp && mv docker-compose.yml.tmp docker-compose.yml
 fi
 
 docker compose up -d
